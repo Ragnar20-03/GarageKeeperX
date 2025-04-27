@@ -4,118 +4,92 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
+  Button,
   Modal,
+  TouchableOpacity,
   ScrollView,
   SafeAreaView,
   StatusBar,
-  ActivityIndicator,
 } from "react-native";
-import { auth, db } from "../firebaseConfig";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "../firebaseConfig";
+import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
 
-const PreviousBookingsScreen = () => {
+const AdminPanel = () => {
   const [bookings, setBookings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
-    const fetchBookings = () => {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
+    const bookingsRef = collection(db, "bookings");
+    const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setBookings(data);
+    });
 
-      const bookingsRef = collection(db, "bookings");
-      const bookingsQuery = query(
-        bookingsRef,
-        where("userId", "==", currentUser.uid), // Fetch bookings of this user only
-        where("status", "in", ["approved", "rejected", "pending"])
-      );
-
-      const unsubscribe = onSnapshot(bookingsQuery, (snapshot) => {
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setBookings(data);
-        setLoading(false);
-      });
-
-      return unsubscribe;
-    };
-
-    const unsubscribe = fetchBookings();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
+
+  const handleStatusChange = async (
+    id: string,
+    status: "approved" | "rejected"
+  ) => {
+    const bookingRef = doc(db, "bookings", id);
+    await updateDoc(bookingRef, { status });
+    setModalVisible(false);
+  };
 
   const openBookingDetails = (booking: any) => {
     setSelectedBooking(booking);
     setModalVisible(true);
   };
 
-  // Render each booking
-  const renderBookingItem = ({ item }: { item: any }) => (
+  const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[
-        styles.bookingCard,
-        item.status === "approved" ? styles.approvedCard : styles.rejectedCard,
+        styles.card,
+        item.status === "approved"
+          ? styles.approvedCard
+          : item.status === "rejected"
+          ? styles.rejectedCard
+          : styles.pendingCard,
       ]}
       onPress={() => openBookingDetails(item)}
     >
-      <View style={styles.cardHeader}>
-        <Text style={styles.bookingTitle}>{item.service}</Text>
-        <View
+      <Text style={styles.title}>
+        {item.service} - {item.carno}
+      </Text>
+      <Text style={styles.subtitle}>{item.address}</Text>
+      <View style={styles.statusContainer}>
+        <Text
           style={[
-            styles.statusBadge,
+            styles.statusText,
             item.status === "approved"
-              ? styles.approvedBadge
-              : styles.rejectedBadge,
+              ? styles.approvedText
+              : item.status === "rejected"
+              ? styles.rejectedText
+              : styles.pendingText,
           ]}
         >
-          <Text style={styles.statusText}>{item.status?.toUpperCase()}</Text>
-        </View>
+          {item.status ? item.status.toUpperCase() : "PENDING"}
+        </Text>
       </View>
-
-      <Text style={styles.bookingSubtitle}>Car: {item.carno}</Text>
-      <Text style={styles.bookingDetail}>Address: {item.address}</Text>
-      {item.time && <Text style={styles.bookingDetail}>Time: {item.time}</Text>}
-
-      <Text style={styles.viewMore}>Tap to view details</Text>
     </TouchableOpacity>
   );
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0066cc" />
-        <Text style={styles.loadingText}>Loading bookings...</Text>
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      <Text style={styles.header}>Previous Bookings</Text>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+      <Text style={styles.header}>Admin Panel - Manage Bookings</Text>
 
-      {bookings.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No previous bookings found</Text>
-          <Text style={styles.emptySubtext}>
-            Your completed bookings will appear here
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={bookings}
-          renderItem={renderBookingItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-        />
-      )}
+      <FlatList
+        data={bookings}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContainer}
+      />
 
       <Modal
         animationType="slide"
@@ -129,21 +103,6 @@ const PreviousBookingsScreen = () => {
               {selectedBooking && (
                 <>
                   <Text style={styles.modalHeader}>Booking Details</Text>
-
-                  <View
-                    style={[
-                      styles.statusContainer,
-                      selectedBooking.status === "approved"
-                        ? styles.approvedContainer
-                        : styles.rejectedContainer,
-                    ]}
-                  >
-                    <Text style={styles.statusLargeText}>
-                      {selectedBooking.status === "approved"
-                        ? "APPROVED"
-                        : "REJECTED"}
-                    </Text>
-                  </View>
 
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Service:</Text>
@@ -192,6 +151,51 @@ const PreviousBookingsScreen = () => {
                       </Text>
                     </View>
                   )}
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Status:</Text>
+                    <Text
+                      style={[
+                        styles.detailValue,
+                        selectedBooking.status === "approved"
+                          ? styles.approvedText
+                          : selectedBooking.status === "rejected"
+                          ? styles.rejectedText
+                          : styles.pendingText,
+                      ]}
+                    >
+                      {selectedBooking.status
+                        ? selectedBooking.status.toUpperCase()
+                        : "PENDING"}
+                    </Text>
+                  </View>
+
+                  {!selectedBooking.status ||
+                  selectedBooking.status === "pending" ? (
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.approveButton]}
+                        onPress={() =>
+                          handleStatusChange(selectedBooking.id, "approved")
+                        }
+                      >
+                        <Text style={styles.actionButtonText}>Approve</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.rejectButton]}
+                        onPress={() =>
+                          handleStatusChange(selectedBooking.id, "rejected")
+                        }
+                      >
+                        <Text style={styles.actionButtonText}>Reject</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Text style={styles.alreadyProcessed}>
+                      This booking has already been {selectedBooking.status}
+                    </Text>
+                  )}
                 </>
               )}
             </ScrollView>
@@ -212,108 +216,73 @@ const PreviousBookingsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
     padding: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666666",
+    backgroundColor: "#f8f9fa",
   },
   header: {
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 20,
-    color: "#34495e",
+    color: "#343a40",
   },
   listContainer: {
     paddingBottom: 20,
   },
-  bookingCard: {
+  card: {
     padding: 16,
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
+  pendingCard: {
+    backgroundColor: "#fff",
+    borderLeftWidth: 4,
+    borderLeftColor: "#ffc107",
+  },
   approvedCard: {
-    backgroundColor: "#f8fff8",
+    backgroundColor: "#fff",
     borderLeftWidth: 4,
     borderLeftColor: "#28a745",
   },
   rejectedCard: {
-    backgroundColor: "#fff8f8",
+    backgroundColor: "#fff",
     borderLeftWidth: 4,
     borderLeftColor: "#dc3545",
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  bookingTitle: {
+  title: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2c3e50",
-    flex: 1,
+    color: "#212529",
   },
-  bookingSubtitle: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#34495e",
-    marginBottom: 6,
-  },
-  bookingDetail: {
+  subtitle: {
     fontSize: 14,
-    color: "#7f8c8d",
+    color: "#6c757d",
     marginTop: 4,
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  approvedBadge: {
-    backgroundColor: "#d4edda",
-  },
-  rejectedBadge: {
-    backgroundColor: "#f8d7da",
+  statusContainer: {
+    marginTop: 8,
+    alignItems: "flex-end",
   },
   statusText: {
-    fontSize: 12,
     fontWeight: "bold",
-  },
-  viewMore: {
-    marginTop: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
     fontSize: 12,
-    color: "#6c757d",
-    fontStyle: "italic",
-    textAlign: "right",
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+  pendingText: {
+    color: "#ffc107",
   },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#6c757d",
+  approvedText: {
+    color: "#28a745",
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#adb5bd",
-    marginTop: 8,
+  rejectedText: {
+    color: "#dc3545",
   },
   modalOverlay: {
     flex: 1,
@@ -340,22 +309,6 @@ const styles = StyleSheet.create({
     color: "#212529",
     textAlign: "center",
   },
-  statusContainer: {
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  approvedContainer: {
-    backgroundColor: "#d4edda",
-  },
-  rejectedContainer: {
-    backgroundColor: "#f8d7da",
-  },
-  statusLargeText: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
   detailRow: {
     flexDirection: "row",
     marginBottom: 12,
@@ -372,6 +325,29 @@ const styles = StyleSheet.create({
     flex: 1,
     color: "#212529",
   },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
+  },
+  actionButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginHorizontal: 6,
+  },
+  approveButton: {
+    backgroundColor: "#28a745",
+  },
+  rejectButton: {
+    backgroundColor: "#dc3545",
+  },
+  actionButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
   closeButton: {
     marginTop: 16,
     padding: 12,
@@ -383,6 +359,15 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
   },
+  alreadyProcessed: {
+    textAlign: "center",
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: "#e9ecef",
+    borderRadius: 8,
+    color: "#495057",
+    fontStyle: "italic",
+  },
 });
 
-export default PreviousBookingsScreen;
+export default AdminPanel;

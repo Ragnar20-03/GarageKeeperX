@@ -1,5 +1,6 @@
 "use client";
 
+import { addDoc, collection, Timestamp } from "firebase/firestore";
 import { useState, useEffect } from "react";
 import {
   View,
@@ -14,6 +15,7 @@ import {
   StatusBar,
   SafeAreaView,
 } from "react-native";
+import { auth, db } from "../firebaseConfig";
 
 // Get screen dimensions for responsive design
 const { width, height } = Dimensions.get("window");
@@ -74,6 +76,7 @@ const TypewriterText = ({
 const ServiceScreen = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedService, setSelectedService] = useState("");
+  const [description, setDescription] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
@@ -84,22 +87,39 @@ const ServiceScreen = () => {
   const aboutUsText =
     "GaageKepperX is your trusted partner for all automotive maintenance and repair needs. With years of experience and a team of certified professionals, we ensure your vehicle receives the best care possible.";
 
-  const handleBooking = () => {
-    // Validate form fields
+  const handleBooking = async () => {
     if (!customerName || !phoneNumber || !email || !carPlate || !time) {
       alert("Please fill in all required fields");
       return;
     }
 
-    // Reset form and close modal
-    alert("Booking confirmed! We'll contact you shortly.");
-    setCustomerName("");
-    setPhoneNumber("");
-    setEmail("");
-    setCarPlate("");
-    setAddress("");
-    setTime("");
-    setIsModalVisible(false);
+    try {
+      await addDoc(collection(db, "bookings"), {
+        service: selectedService,
+        customerName,
+        phoneNumber,
+        email,
+        carPlate,
+        description,
+        address,
+        time,
+        userId: auth.currentUser?.uid,
+        status: "pending",
+        createdAt: Timestamp.now(),
+      });
+
+      alert("Booking confirmed! We'll contact you shortly.");
+      setCustomerName("");
+      setPhoneNumber("");
+      setEmail("");
+      setCarPlate("");
+      setAddress("");
+      setTime("");
+      setIsModalVisible(false);
+    } catch (error) {
+      console.error("Error adding booking: ", error);
+      alert("Failed to confirm booking. Please try again.");
+    }
   };
 
   return (
@@ -205,6 +225,16 @@ const ServiceScreen = () => {
                 placeholder="Enter your car plate number"
                 value={carPlate}
                 onChangeText={setCarPlate}
+              />
+
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Enter your address"
+                value={description}
+                onChangeText={setDescription}
+                multiline={true}
+                numberOfLines={3}
               />
 
               <Text style={styles.inputLabel}>Address</Text>

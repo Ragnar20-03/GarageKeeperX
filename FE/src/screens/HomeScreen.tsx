@@ -51,7 +51,7 @@ const services = [
 const testimonials = [
   {
     id: 1,
-    name: "John Smith",
+    name: "Lakshit tawale",
     rating: 5,
     comment:
       "Excellent service! My car looks brand new after their premium wash.",
@@ -59,14 +59,14 @@ const testimonials = [
   },
   {
     id: 2,
-    name: "Sarah Johnson",
+    name: "Kishan Mali",
     rating: 5,
     comment: "The team was professional and fixed my car's issues quickly.",
     avatar: "https://randomuser.me/api/portraits/women/44.jpg",
   },
   {
     id: 3,
-    name: "Michael Brown",
+    name: "Parth Pingale",
     rating: 4,
     comment: "Great maintenance service. Will definitely come back!",
     avatar: "https://randomuser.me/api/portraits/men/22.jpg",
@@ -130,7 +130,7 @@ const HomeScreen: React.FC = () => {
             style={styles.heroGradient}
           >
             <View style={styles.heroContent}>
-              <Text style={styles.heroTitle}>Auto Excellence</Text>
+              <Text style={styles.heroTitle}>Garage Kepper</Text>
               <TypewriterText text={heroTagline} />
               <TouchableOpacity
                 style={styles.heroButton}
@@ -153,6 +153,7 @@ const HomeScreen: React.FC = () => {
                 style={styles.serviceCard}
                 // @ts-ignore
                 onPress={() =>
+                  //@ts-ignore
                   navigation.navigate("ServiceDetail", { service })
                 }
               >
